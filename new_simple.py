@@ -217,38 +217,55 @@ def main():
                 st.toast("Purchase logged successfully!", icon="✅")
                 st.rerun()
 
-        # --- SIDEBAR: SMS SCANNER ---
+      # --- SIDEBAR: SMS SCANNER ---
         st.sidebar.write("---")
         st.sidebar.header("📱 3. Smart SMS Reader")
-        st.sidebar.caption("Paste a bank alert below to test the automation.")
+        st.sidebar.caption("Paste one or multiple bank alerts below to test the automation.")
 
-        test_sms = st.sidebar.text_area("SMS Text:", "Account debited by Rs. 350.00 on 11-Jul for Zomato.")
+        # Updated default text showing multiple lines as an example
+        default_text = "Account debited by Rs. 350.00 on 11-Jul for Zomato.\nAccount debited by ₹120.00 on 12-Jul for Uber."
+        test_sms = st.sidebar.text_area("SMS Text:", default_text, height=150)
 
         if st.sidebar.button("Run Text Scanner"):
-            scanner = re.search(r'(?:Rs\.?|INR|₹)\s*(\d+(?:\.\d+)?)', test_sms, re.IGNORECASE)
+            # Use finditer to scan the entire text block for ALL matches
+            expense_matches = list(re.finditer(r'(?:Rs\.?|INR|₹)\s*(\d+(?:\.\d+)?)', test_sms, re.IGNORECASE))
             
-            if scanner:
-                found_cash = float(scanner.group(1))
-                text_lower = test_sms.lower()
-                detected_category = "Misc" 
+            if expense_matches:
+                text_lower_full = test_sms.lower()
+                success_count = 0
                 
+                # Keywords for categorization
                 food_kw = ["zomato", "swiggy", "blinkit", "zepto", "instamart", "kfc", "mcdonalds", "dominos", "cafe"]
                 shop_kw = ["amazon", "flipkart", "myntra", "ajio", "zudio", "reliance", "croma", "mall"]
                 trans_kw = ["uber", "ola", "rapido", "metro", "irctc", "bus", "train", "flight"]
                 movie_kw = ["netflix", "pvr", "movie", "spotify", "bookmyshow", "prime"]
                 
-                if any(word in text_lower for word in food_kw): detected_category = "Snacks/Food"
-                elif any(word in text_lower for word in shop_kw): detected_category = "Shopping"
-                elif any(word in text_lower for word in trans_kw): detected_category = "Transport"
-                elif any(word in text_lower for word in movie_kw): detected_category = "Fun/Movies"
+                # Loop through all found matches
+                for i, match in enumerate(expense_matches):
+                    found_cash = float(match.group(1))
+                    
+                    # To accurately find the right category per expense, we look at the text 
+                    # surrounding this specific match instead of the whole paragraph at once.
+                    start_idx = max(0, match.start() - 50)
+                    end_idx = min(len(test_sms), match.end() + 50)
+                    context_text = text_lower_full[start_idx:end_idx]
+                    
+                    detected_category = "Misc"
+                    if any(word in context_text for word in food_kw): detected_category = "Snacks/Food"
+                    elif any(word in context_text for word in shop_kw): detected_category = "Shopping"
+                    elif any(word in context_text for word in trans_kw): detected_category = "Transport"
+                    elif any(word in context_text for word in movie_kw): detected_category = "Fun/Movies"
+                    
+                    # Log the item into your Google Sheet
+                    insert_record(current_user, sheet_client, datetime.today().date(), detected_category, found_cash, "Auto-scanned")
+                    st.toast(f"Match {i+1}: Detected ₹{found_cash} for {detected_category}.", icon="🤖")
+                    success_count += 1
                 
-                insert_record(current_user, sheet_client, datetime.today().date(), detected_category, found_cash, "Auto-scanned")
-                st.toast(f"Awesome! Detected ₹{found_cash} for {detected_category}.", icon="🤖")
-                st.rerun()
+                # Refresh the screen once everything is written successfully
+                if success_count > 0:
+                    st.rerun()
             else:
-                st.sidebar.error("Couldn't extract a valid number from that message.")
-
-
+                st.sidebar.error("Couldn't extract any valid numbers from that message.")
                 # --- SIDEBAR: LOGOUT BUTTON (AT THE BOTTOM) ---
         st.sidebar.write("---")
         if st.sidebar.button("🚪🚶 Logout"):
