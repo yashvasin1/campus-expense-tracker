@@ -5,12 +5,12 @@ import re
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-# --- HIDE STREAMLIT BRANDING ---
+# --- HIDE STREAMLIT BRANDING (UPDATED) ---
 hide_st_style = """
             <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
+            [data-testid="stToolbar"] {visibility: hidden !important;}
+            [data-testid="stFooter"] {visibility: hidden !important;}
+            [data-testid="stHeader"] {visibility: hidden !important;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
