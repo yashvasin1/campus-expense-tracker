@@ -5,6 +5,15 @@ import re
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
+# --- HIDE STREAMLIT BRANDING ---
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
 
 # --- 1. VIP GUEST LIST (Matches your Google Sheet Tabs) ---
 VIP_USERS = {
