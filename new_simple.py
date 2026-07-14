@@ -63,7 +63,26 @@ def update_entire_sheet(username, sheet_client, df):
 
 def main():
     st.set_page_config(page_title="Campus Finance", layout="wide")
-    
+    # --- HIDE STREAMLIT BRANDING & CLOUD BADGE ---
+    hide_st_style = """
+                <style>
+                /* Hide standard Streamlit elements */
+                [data-testid="stToolbar"] {visibility: hidden !important;}
+                [data-testid="stFooter"] {visibility: hidden !important;}
+                [data-testid="stHeader"] {visibility: hidden !important;}
+                [data-testid="stDecoration"] {display: none !important;}
+                
+                /* Hide the floating Streamlit Cloud badge at the bottom right */
+                .viewerBadge_container__1QSob,
+                .styles_viewerBadge__1yB5_,
+                .viewerBadge_link__1S137,
+                .viewerBadge_text__1JaDK {
+                    display: none !important;
+                    visibility: hidden !important;
+                }
+                </style>
+                """
+    st.markdown(hide_st_style, unsafe_allow_html=True)
     # Connect to Google Sheets
     try:
         sheet_client = init_connection()
