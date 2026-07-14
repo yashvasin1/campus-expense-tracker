@@ -5,24 +5,14 @@ import re
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-# --- HIDE STREAMLIT BRANDING (UPDATED) ---
-hide_st_style = """
-            <style>
-            [data-testid="stToolbar"] {visibility: hidden !important;}
-            [data-testid="stFooter"] {visibility: hidden !important;}
-            [data-testid="stHeader"] {visibility: hidden !important;}
-            </style>
-            """
-st.markdown(hide_st_style, unsafe_allow_html=True)
 
-# --- 1. VIP GUEST LIST (Matches your Google Sheet Tabs) ---
+# --- 1. VIP GUEST LIST ---
 VIP_USERS = {
     "tester-1": "1234",
     "tester-2": "1234",
     "tester-3": "1234",
     "tester-4": "1234",
     "professor":"1234"
-
 }
 
 # --- 2. GOOGLE SHEETS CONNECTION ---
@@ -63,14 +53,15 @@ def update_entire_sheet(username, sheet_client, df):
 
 def main():
     st.set_page_config(page_title="Campus Finance", layout="wide")
-    # --- HIDE STREAMLIT BRANDING & CLOUD BADGE ---
+    
+    # --- 100% SAFE CSS ---
     hide_st_style = """
                 <style>
-                /* Hide standard Streamlit elements */
-                [data-testid="stToolbar"] {visibility: hidden !important;}
+                /* Hide the bottom footer */
                 [data-testid="stFooter"] {visibility: hidden !important;}
-                [data-testid="stHeader"] {visibility: hidden !important;}
-                [data-testid="stDecoration"] {display: none !important;}
+                
+                /* Hide the colored decoration line at the top */
+                [data-testid="stDecoration"] {visibility: hidden !important;}
                 
                 /* Hide the floating Streamlit Cloud badge at the bottom right */
                 .viewerBadge_container__1QSob,
@@ -78,7 +69,6 @@ def main():
                 .viewerBadge_link__1S137,
                 .viewerBadge_text__1JaDK {
                     display: none !important;
-                    visibility: hidden !important;
                 }
                 </style>
                 """
@@ -109,17 +99,13 @@ def main():
             else:
                 st.error("Incorrect username or password. Access Denied.")
                 
-    # --- THE MAIN APP (Only runs if authenticated) ---
+    # --- THE MAIN APP ---
     else:
         current_user = st.session_state["username"]
         
-        # --- SIDEBAR GREETING (AT THE TOP) ---
         st.sidebar.write(f"### 👋 Welcome, {current_user.title()}!")
         st.sidebar.write("---")
             
-        
-        
-        # Fetching directly from Google Sheets
         records = fetch_records(current_user, sheet_client)
         
         if len(records) > 0:
@@ -128,12 +114,10 @@ def main():
             records["Month_Year"] = records["Date"].dt.to_period("M").astype(str)
             records["Year"] = records["Date"].dt.year
 
-        # --- SIDEBAR: GOALS & LIMITS ---
         st.sidebar.header("1. Goals & Limits")
         monthly_limit = st.sidebar.number_input("Monthly Budget (₹)", min_value=0.0, value=5000.0)
         yearly_goal = st.sidebar.number_input("Yearly Savings Goal (₹)", min_value=0.0, value=20000.0)
 
-        # --- TOP HEADER & YEARLY GOAL WIDGET ---
         col_title, col_goal = st.columns([2.2, 1.8])
 
         with col_title:
@@ -168,15 +152,10 @@ def main():
             else:
                 st.metric(f"🎯 {current_year} Savings Progress", f"₹0 Saved", f"Goal: ₹{yearly_goal:,.2f}", delta_color="off")
 
-            # --- THE HORIZONTAL MINI BAR ---
             if yearly_goal > 0:
-                # Calculate the percentage to fill the bar (capped between 0% and 100%)
                 progress_fraction = max(0.0, min(total_saved / yearly_goal, 1.0))
                 progress_percent = int(progress_fraction * 100)
-                
-                # Create the visual Streamlit progress bar
                 st.progress(progress_fraction, text=f"Goal Completion: {progress_percent}%")
-
 
         # --- SIDEBAR: DYNAMIC FORM ---
         st.sidebar.write("---")
@@ -217,35 +196,28 @@ def main():
                 st.toast("Purchase logged successfully!", icon="✅")
                 st.rerun()
 
-      # --- SIDEBAR: SMS SCANNER ---
+        # --- SIDEBAR: SMS SCANNER ---
         st.sidebar.write("---")
         st.sidebar.header("📱 3. Smart SMS Reader")
         st.sidebar.caption("Paste one or multiple bank alerts below to test the automation.")
 
-        # Updated default text showing multiple lines as an example
         default_text = "Account debited by Rs. 350.00 on 11-Jul for Zomato.\nAccount debited by ₹120.00 on 12-Jul for Uber."
         test_sms = st.sidebar.text_area("SMS Text:", default_text, height=150)
 
         if st.sidebar.button("Run Text Scanner"):
-            # Use finditer to scan the entire text block for ALL matches
             expense_matches = list(re.finditer(r'(?:Rs\.?|INR|₹)\s*(\d+(?:\.\d+)?)', test_sms, re.IGNORECASE))
             
             if expense_matches:
                 text_lower_full = test_sms.lower()
                 success_count = 0
                 
-                # Keywords for categorization
                 food_kw = ["zomato", "swiggy", "blinkit", "zepto", "instamart", "kfc", "mcdonalds", "dominos", "cafe"]
                 shop_kw = ["amazon", "flipkart", "myntra", "ajio", "zudio", "reliance", "croma", "mall"]
                 trans_kw = ["uber", "ola", "rapido", "metro", "irctc", "bus", "train", "flight"]
                 movie_kw = ["netflix", "pvr", "movie", "spotify", "bookmyshow", "prime"]
                 
-                # Loop through all found matches
                 for i, match in enumerate(expense_matches):
                     found_cash = float(match.group(1))
-                    
-                    # To accurately find the right category per expense, we look at the text 
-                    # surrounding this specific match instead of the whole paragraph at once.
                     start_idx = max(0, match.start() - 50)
                     end_idx = min(len(test_sms), match.end() + 50)
                     context_text = text_lower_full[start_idx:end_idx]
@@ -256,17 +228,16 @@ def main():
                     elif any(word in context_text for word in trans_kw): detected_category = "Transport"
                     elif any(word in context_text for word in movie_kw): detected_category = "Fun/Movies"
                     
-                    # Log the item into your Google Sheet
                     insert_record(current_user, sheet_client, datetime.today().date(), detected_category, found_cash, "Auto-scanned")
                     st.toast(f"Match {i+1}: Detected ₹{found_cash} for {detected_category}.", icon="🤖")
                     success_count += 1
                 
-                # Refresh the screen once everything is written successfully
                 if success_count > 0:
                     st.rerun()
             else:
                 st.sidebar.error("Couldn't extract any valid numbers from that message.")
-                # --- SIDEBAR: LOGOUT BUTTON (AT THE BOTTOM) ---
+
+        # --- SIDEBAR: LOGOUT ---
         st.sidebar.write("---")
         if st.sidebar.button("🚪🚶 Logout"):
             st.session_state["logged_in"] = False
@@ -336,20 +307,7 @@ def main():
                 st.warning("⚠️ You've spent over 80% of your budget. Time to pace yourself.")
             elif total_out > 0:
                 st.success("✅ You're comfortably within your budget. Great job managing your money!")
-
-            if len(monthly_records) > 0:
-                grouped = monthly_records.groupby("Category")["Cost"].sum().reset_index()
-                top_row = grouped.loc[grouped["Cost"].idxmax()]
-                
-                top_cat = top_row["Category"]
-                top_cost = top_row["Cost"]
-                
-                if top_cat == "Snacks/Food": st.info(f"🍔 Your biggest expense is **Snacks/Food** (₹{top_cost:,.2f}). Tip: Try eating at the campus mess more often.")
-                elif top_cat == "Shopping": st.info(f"🛍️ **Shopping** took the top spot (₹{top_cost:,.2f}). Tip: Try the '48-hour rule' before checking out.")
-                elif top_cat == "Transport": st.info(f"🚕 You're spending a lot on **Transport** (₹{top_cost:,.2f}). Tip: Check if you can share rides or walk.")
-                elif top_cat == "Fun/Movies": st.info(f"🎬 Your top category is **Fun/Movies** (₹{top_cost:,.2f}). Tip: Keep an eye out for free campus events!")
-                elif top_cat == "College/Edu": st.info(f"📚 You spent ₹{top_cost:,.2f} on **College/Edu**. Good investment!")
-
+            # --- MISSING BAR GRAPH SECTION ---
             st.write("---")
             with st.expander("📈 Monthly Spending Trends"):
                 if len(records) > 0:
@@ -366,10 +324,10 @@ def main():
                     st.plotly_chart(bar_chart, use_container_width=True)
                 else:
                     st.info("Log some expenses across different months to see your trends here!")
-
+            # ---------------------------------
             st.write("---")
             with st.expander("🛠️ Manage Records"):
-                st.write("Double-click cells to edit, or select a row and hit Delete.")
+                st.write("Double-click cells to edit. To delete a record, check the box on the far left of the row and press 'Delete' on your keyboard.")
                 
                 visible_cols = ["Date", "Category", "Cost", "Details"]
                 table_categories = [c for c in all_categories if c != "➕ Custom..."]
