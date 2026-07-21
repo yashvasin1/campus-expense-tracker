@@ -335,6 +335,7 @@ def main():
             elif total_out > 0:
                 st.success("✅ You're comfortably within your budget. Great job managing your money!")
             # --- MISSING BAR GRAPH SECTION ---
+            # --- MISSING BAR GRAPH SECTION ---
             st.write("---")
             with st.expander("📈 Monthly Spending Trends"):
                 if len(records) > 0:
@@ -348,9 +349,14 @@ def main():
                     )
                     bar_chart.update_traces(texttemplate='₹%{text:,.2f}', textposition='outside')
                     bar_chart.update_layout(uniformtext_minsize=8, uniformtext_mode='hide')
+                    
+                    # This forces Plotly to show strictly the month name (e.g., 2026-07) and hides the days!
+                    bar_chart.update_xaxes(type='category')
+                    
                     st.plotly_chart(bar_chart, use_container_width=True)
                 else:
                     st.info("Log some expenses across different months to see your trends here!")
+            # ---------------------------------
             # ---------------------------------
             st.write("---")
             with st.expander("🛠️ Manage Records"):
