@@ -109,6 +109,9 @@ def main():
         records = fetch_records(current_user, sheet_client)
         
         if len(records) > 0:
+            # --- ADD THIS LINE TO FORCE 'COST' TO BE A REAL NUMBER ---
+            records["Cost"] = pd.to_numeric(records["Cost"].astype(str).str.replace('₹', '', regex=False).str.replace(',', '', regex=False).str.strip(), errors='coerce').fillna(0.0)
+            
             records["Date"] = pd.to_datetime(records["Date"], errors='coerce')
             records = records.dropna(subset=["Date"])
             records["Month_Year"] = records["Date"].dt.to_period("M").astype(str)
@@ -118,13 +121,17 @@ def main():
         monthly_limit = st.sidebar.number_input("Monthly Budget (₹)", min_value=0.0, value=5000.0)
         yearly_goal = st.sidebar.number_input("Yearly Savings Goal (₹)", min_value=0.0, value=20000.0)
 
-        col_title, col_goal = st.columns([2.2, 1.8])
+        # 1. Added gap="large" to create wide horizontal space between columns
+        col_title, col_goal = st.columns([2.2, 1.8], gap="large")
 
         with col_title:
             st.title(f"📊 {current_user.title()}'s Expense Tracker")
             st.write("Keep track of your monthly allowance and spending")
 
         with col_goal:
+            # 2. Added empty write() to push the Savings card down for perfect vertical alignment
+            st.write("") 
+            
             current_year = datetime.today().year
             total_saved = 0
             
@@ -179,18 +186,33 @@ def main():
             input_date = st.date_input("Date of Purchase", datetime.today().date())
             input_cat = st.selectbox("Category", all_categories)
             custom_cat = st.text_input("Custom Category (if selected above)")
-            input_cost = st.number_input("Cost (₹)", min_value=1.0)
+            input_cost = st.text_input("Cost (₹)", placeholder="e.g. 150")
             input_details = st.text_input("Details")
             
             save_btn = st.form_submit_button("Log It")
             
             if save_btn:
-                final_category = input_cat
-                if input_cat == "➕ Custom...":
-                    if custom_cat.strip() != "":
-                        final_category = custom_cat.strip().title()
+                try:
+                    # Convert the text they typed into a valid number
+                    final_cost = float(input_cost)
+                    
+                    if final_cost <= 0:
+                        st.sidebar.error("Cost must be greater than 0.")
                     else:
-                        final_category = "Misc" 
+                        final_category = input_cat
+                        if input_cat == "➕ Custom...":
+                            if custom_cat.strip() != "":
+                                final_category = custom_cat.strip().title()
+                            else:
+                                final_category = "Misc" 
+                                
+                        insert_record(current_user, sheet_client, input_date, final_category, final_cost, input_details)
+                        st.toast("Purchase logged successfully!", icon="✅")
+                        st.rerun()
+                        
+                except ValueError:
+                    # If they accidentally typed letters or left it blank
+                    st.sidebar.error("Please enter a valid number for the cost.")
                         
                 insert_record(current_user, sheet_client, input_date, final_category, input_cost, input_details)
                 st.toast("Purchase logged successfully!", icon="✅")
@@ -250,14 +272,18 @@ def main():
             unique_months = sorted(records["Month_Year"].dropna().astype(str).unique(), reverse=True)
             
             col_m1, col_m2 = st.columns(2)
+                       
             with col_m1:
-                view_month = st.selectbox("View spending for:", unique_months)
+                # --- SMART INDEX: AUTO-SELECT CURRENT MONTH BY DEFAULT ---
+                current_m_str = datetime.today().strftime("%Y-%m")
+                default_idx = unique_months.index(current_m_str) if current_m_str in unique_months else 0
+                view_month = st.selectbox("View spending for:", unique_months, index=default_idx)
             with col_m2:
                 compare_toggle = st.checkbox("Compare with another month")
                 if compare_toggle:
-                    default_index = 1 if len(unique_months) > 1 else 0
-                    compare_month = st.selectbox("Compare against:", unique_months, index=default_index)
-            
+                    default_compare = 1 if len(unique_months) > 1 else 0
+                    compare_month = st.selectbox("Compare against:", unique_months, index=default_compare)
+
             monthly_records = records[records["Month_Year"] == view_month]
             total_out = monthly_records["Cost"].sum()
             balance = monthly_limit - total_out
@@ -286,7 +312,8 @@ def main():
             with col_left:
                 st.write("#### Recent Activity")
                 if len(monthly_records) > 0:
-                    display_data = monthly_records[["Date", "Category", "Cost", "Details"]].sort_values(by="Date", ascending=False)
+                    # Flip table upside-down first (newest entries on top), then sort by date
+                    display_data = monthly_records[["Date", "Category", "Cost", "Details"]].iloc[::-1].sort_values(by="Date", ascending=False, kind="mergesort")
                     st.dataframe(display_data.head(10), hide_index=True)
                     
             with col_right:
